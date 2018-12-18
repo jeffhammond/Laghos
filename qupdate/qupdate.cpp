@@ -165,6 +165,7 @@ namespace hydrodynamics {
       // ***********************************************************************
       timer.sw_qdata.Start();
       Vector* S_p = (Vector*) &S;
+      //S_p->Print();assert(false);
       S_p->Pull();
       //S_p->Push(); // No need to push them back, an .Assign will come after
       const mfem::FiniteElement& fe = *H1FESpace.GetFE(0);
@@ -172,30 +173,52 @@ namespace hydrodynamics {
       const int nqp = ir.GetNPoints();
       dbg("numDofs=%d, nqp=%d, nzones=%d",numDofs,nqp,nzones);
       const size_t H1_size = H1FESpace.GetVSize();
-      //const size_t L2_size = L2FESpace.GetVSize();
+      const size_t L2_size = L2FESpace.GetVSize();
       const int nqp1D = tensors1D->LQshape1D.Width();
           
       // Energy dof => quads ***************************************************
       dbg("Energy dof => quads (L2FESpace)");
       static double *d_e_quads_data = NULL;
       d_e.MakeRefOffset(*S_p, 2*H1_size);
+      /*dbg("d_e:");
+      for (size_t k=0;k<L2_size;k+=1){
+         printf("%f ",d_e[k]);
+         }*/
+      //assert(false);
       Dof2QuadScalar(L2FESpace, ir, (const double*)d_e.GetDeviceData(), &d_e_quads_data);
-
+      /*dbg("d_e_quads_data:");
+      for (size_t k=0;k<2*H1_size;k+=1){
+         printf("%f ",d_e_quads_data[k]);
+         }*/
+      //assert(false);
+      
       // Coords to Jacobians ***************************************************
       dbg("Refresh Geom J, invJ & detJ");
       static double *d_grad_x_data = NULL;
       d_x.MakeRefOffset(*S_p, 0);
       Dof2QuadGrad(H1FESpace, ir, (const double*)d_x.GetDeviceData(), &d_grad_x_data);
-
+      /*dbg("d_grad_x_data:");
+      for (size_t k=0;k<2*H1_size;k+=1){
+         printf("%f ",d_grad_x_data[k]);
+         }*/
+      //assert(false);
+      
       // Integration Points Weights (tensor) ***********************************
       dbg("Integration Points Weights (tensor,H1FESpace)");
       const kernels::kDofQuadMaps* maps = kernels::kDofQuadMaps::Get(H1FESpace,ir);
-      
+      /*dbg("quadWeights:");
+        maps->quadWeights.Print();*/
+
       // Velocity **************************************************************
       dbg("Velocity H1_size=%d",H1_size);
       d_v.MakeRefOffset(*S_p, H1_size);
       static double *d_grad_v_data = NULL;
       Dof2QuadGrad(H1FESpace,ir,(const double*)d_v.GetDeviceData(),&d_grad_v_data);
+      /*dbg("d_grad_v_data:");
+      for (size_t k=0;k<2*H1_size;k+=1){
+         printf("%f ",d_grad_v_data[k]);
+         }*/
+      //assert(false);
 
       // ***********************************************************************      
       const double h1order = (double) H1FESpace.GetOrder(0);
@@ -212,6 +235,11 @@ namespace hydrodynamics {
                                        quad_data.rho0DetJ0w.GetData(),
                                        rho0DetJ0w_sz*sizeof(double));
       }
+      /*dbg("d_rho0DetJ0w:");
+      for (size_t k=0;k<rho0DetJ0w_sz;k+=1){
+         printf("%f ",d_rho0DetJ0w[k]);
+         }*/
+      //fflush(0); assert(false);
 
       // ***********************************************************************
       dbg("Jac0inv");
@@ -224,6 +252,11 @@ namespace hydrodynamics {
                                  quad_data.Jac0inv.Data(),
                                  Jac0inv_sz*sizeof(double));
       }
+      /*dbg("d_Jac0inv:");
+      for (size_t k=0;k<Jac0inv_sz;k+=1){
+         printf("%f ",d_Jac0inv[k]);
+         }*/
+      //fflush(0); assert(false);
 
       // ***********************************************************************
       dbg("dt_est=%f",quad_data.dt_est);
@@ -238,6 +271,10 @@ namespace hydrodynamics {
          d_dt_est = (double*)kernels::kmalloc<double>::operator new(dt_est_sz);
          kernels::kmemcpy::rHtoD(d_dt_est, h_dt_est, dt_est_sz*sizeof(double));
       }
+      /* dbg("d_dt_est:");
+      for (size_t k=0;k<dt_est_sz;k+=1){
+         printf("%f ",d_dt_est[k]);
+         }*/
 
       // ***********************************************************************
       dbg("qkernel");
@@ -260,6 +297,11 @@ namespace hydrodynamics {
                                    quad_data.stressJinvT.Data());
 
       // ***********************************************************************
+      //dbg("d_dt_est:");
+      //mm::Get().Pull(d_dt_est);
+      /*for (size_t k=0;k<dt_est_sz;k+=1){
+         printf("%f ",d_dt_est[k]);
+         }*/
       quad_data.dt_est = vector_min(dt_est_sz,d_dt_est);
       dbg("\033[7mdt_est=%.15e",quad_data.dt_est);
       //assert(false);

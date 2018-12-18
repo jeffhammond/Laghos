@@ -22,62 +22,62 @@ namespace mfem {
 
 namespace hydrodynamics {
    
-   // **************************************************************************
-   template<const int NUM_VDIM,
-            const int NUM_DOFS_1D,
-            const int NUM_QUAD_1D>
-   __kernel__ void vecToQuad2D(const int numElements,
-                               const double* __restrict dofToQuad,
-                               const double* __restrict in,
-                               double* __restrict out) {
+// **************************************************************************
+template<const int NUM_VDIM,
+         const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D>
+__kernel__ void vecToQuad2D(const int numElements,
+                            const double* __restrict dofToQuad,
+                            const double* __restrict in,
+                            double* __restrict out) {
 #ifdef __NVCC__
-      const int e = blockDim.x * blockIdx.x + threadIdx.x;
-      if (e < numElements)
+   const int e = blockDim.x * blockIdx.x + threadIdx.x;
+   if (e < numElements)
 #else
       for(int e=0;e<numElements;e+=1)
 #endif
-      {
-         double out_xy[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D];
-         for (int v = 0; v < NUM_VDIM; ++v) {
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-                  out_xy[v][qy][qx] = 0;
-               }
-            }
-         }
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-            double out_x[NUM_VDIM][NUM_QUAD_1D];
-            for (int v = 0; v < NUM_VDIM; ++v) {
-               for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-                  out_x[v][qy] = 0;
-               }
-            }
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-               for (int v = 0; v < NUM_VDIM; ++v) {
-                  const double r_gf = in[_ijklNM(v,dx,dy,e,NUM_DOFS_1D,numElements)];
-                  for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-                     out_x[v][qy] += r_gf * dofToQuad[ijN(qy, dx,NUM_QUAD_1D)];
-                  }
-               }
-            }
-            for (int v = 0; v < NUM_VDIM; ++v) {
-               for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-                  const double d2q = dofToQuad[ijN(qy, dy,NUM_QUAD_1D)];
-                  for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-                     out_xy[v][qy][qx] += d2q * out_x[v][qx];
-                  }
-               }
-            }
-         }
+   {
+      double out_xy[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D];
+      for (int v = 0; v < NUM_VDIM; ++v) {
          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-               for (int v = 0; v < NUM_VDIM; ++v) {
-                  out[_ijklNM(v, qx, qy, e,NUM_QUAD_1D,numElements)] = out_xy[v][qy][qx];
+               out_xy[v][qy][qx] = 0;
+            }
+         }
+      }
+      for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+         double out_x[NUM_VDIM][NUM_QUAD_1D];
+         for (int v = 0; v < NUM_VDIM; ++v) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+               out_x[v][qy] = 0;
+            }
+         }
+         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int v = 0; v < NUM_VDIM; ++v) {
+               const double r_gf = in[_ijklNM(v,dx,dy,e,NUM_DOFS_1D,numElements)];
+               for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+                  out_x[v][qy] += r_gf * dofToQuad[ijN(qy, dx,NUM_QUAD_1D)];
+               }
+            }
+         }
+         for (int v = 0; v < NUM_VDIM; ++v) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+               const double d2q = dofToQuad[ijN(qy, dy,NUM_QUAD_1D)];
+               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                  out_xy[v][qy][qx] += d2q * out_x[v][qx];
                }
             }
          }
       }
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int v = 0; v < NUM_VDIM; ++v) {
+               out[_ijklNM(v, qx, qy, e,NUM_QUAD_1D,numElements)] = out_xy[v][qy][qx];
+            }
+         }
+      }
    }
+}
    
    // ***************************************************************************
    void Dof2QuadScalar(ParFiniteElementSpace &fes,
@@ -91,7 +91,6 @@ namespace hydrodynamics {
 
       const int dim = fes.GetMesh()->Dimension();
       const int vdim = fes.GetVDim();
-      //const int vsize = fes.GetVSize();
       assert(dim==2);
       assert(vdim==1);
       const mfem::FiniteElement& fe = *fes.GetFE(0);
@@ -105,7 +104,7 @@ namespace hydrodynamics {
          d_local_in = 
             (double*) kernels::kmalloc<double>::operator new(local_size);
       }
-
+      
       kfes.GlobalToLocal(d_in,d_local_in);
       
       const size_t out_size =  nqp * nzones;
